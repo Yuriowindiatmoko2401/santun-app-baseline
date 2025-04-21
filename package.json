@@ -33,18 +33,23 @@
     "react": "^18",
     "react-dom": "^18",
     "react-resizable-panels": "^2.0.20",
+    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
     "use-sound": "^4.0.3",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.4",
+    "ioredis": "^5.6.1",
+    "jsonwebtoken": "^9.0.2",
     "postcss": "^8",
+    "socket.io": "^4.8.1",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

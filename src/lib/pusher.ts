@@ -1,34 +1,34 @@
 import PusherServer from "pusher";
 import PusherClient from "pusher-js";
+import { localPusherServer, localPusherClient } from "./socketio-local";
 
-// in development this will create multiple instances of pusher,
-// which might cause you to hit the connection limit in free tier
-// export const pusherServer = new PusherServer({
-//   appId: process.env.PUSHER_APP_ID!,
-//   key: process.env.PUSHER_APP_KEY!,
-//   secret: process.env.PUSHER_APP_SECRET!,
-//   cluster:"eu",
-//   useTLS: true
-// })
-
-// export const pusherClient = new PusherClient(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, {
-//   cluster:"eu",
-// })
+// Check if we're using local services
+const isLocalDev = process.env.USE_LOCAL_SERVICES === 'true';
 
 declare global {
-	var pusherServer: PusherServer | undefined;
-	var pusherClient: PusherClient | undefined;
+	var pusherServer: PusherServer | any;
+	var pusherClient: PusherClient | any;
 }
 
-export const pusherServer =
-	global.pusherServer ||
-	new PusherServer({
-		appId: process.env.PUSHER_APP_ID!,
-		key: process.env.PUSHER_APP_KEY!,
-		secret: process.env.PUSHER_APP_SECRET!,
-		cluster: "eu",
-		useTLS: true,
-	});
+// Use local Socket.io implementation or Pusher based on environment
+if (isLocalDev) {
+  // Use local implementations for development
+  global.pusherServer = localPusherServer;
+  global.pusherClient = localPusherClient;
+} else if (!global.pusherServer || !global.pusherClient) {
+  // Use actual Pusher for production
+  global.pusherServer = new PusherServer({
+    appId: process.env.PUSHER_APP_ID!,
+    key: process.env.PUSHER_APP_KEY!,
+    secret: process.env.PUSHER_APP_SECRET!,
+    cluster: "eu",
+    useTLS: true,
+  });
+  
+  global.pusherClient = new PusherClient(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, { 
+    cluster: "eu" 
+  });
+}
 
-export const pusherClient =
-	global.pusherClient || new PusherClient(process.env.NEXT_PUBLIC_PUSHER_APP_KEY!, { cluster: "eu" });
+export const pusherServer = global.pusherServer;
+export const pusherClient = global.pusherClient;

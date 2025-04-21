@@ -10,6 +10,24 @@ import { usePreferences } from "@/store/usePreferences";
 import { LogoutLink } from "@kinde-oss/kinde-auth-nextjs/components";
 import { useSelectedUser } from "@/store/useSelectedUser";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import LocalLogoutButton from "./LocalLogoutButton";
+import { useState, useEffect } from "react";
+
+// Helper functions for safely handling user display names
+const getUserInitial = (user: User): string => {
+	if (user.name && user.name.length > 0) return user.name[0];
+	if (user.given_name && user.given_name.length > 0) return user.given_name[0];
+	if (user.email && user.email.length > 0) return user.email[0];
+	return '?';
+};
+
+const getDisplayName = (user: User): string => {
+	if (user.name) return user.name;
+	if (user.given_name || user.family_name) {
+		return `${user.given_name || ''} ${user.family_name || ''}`.trim() || 'Unknown User';
+	}
+	return user.email || 'Unknown User';
+};
 
 interface SidebarProps {
 	isCollapsed: boolean;
@@ -17,6 +35,13 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ isCollapsed, users }: SidebarProps) => {
+	// Initially set to false to avoid hydration mismatch
+	const [isLocalDev, setIsLocalDev] = useState(false);
+
+	// Set the correct value after hydration
+	useEffect(() => {
+		setIsLocalDev(process.env.NEXT_PUBLIC_USE_LOCAL_SERVICES === 'true');
+	}, []);
 	const [playClickSound] = useSound("/sounds/mouse-click.mp3");
 	const { soundEnabled } = usePreferences();
 	const { setSelectedUser, selectedUser } = useSelectedUser();
@@ -51,13 +76,15 @@ const Sidebar = ({ isCollapsed, users }: SidebarProps) => {
 												alt='User Image'
 												className='border-2 border-white rounded-full w-10 h-10'
 											/>
-											<AvatarFallback>{user.name[0]}</AvatarFallback>
+											<AvatarFallback>
+												{getUserInitial(user)}
+											</AvatarFallback>
 										</Avatar>
-										<span className='sr-only'>{user.name}</span>
+										<span className='sr-only'>{getDisplayName(user)}</span>
 									</div>
 								</TooltipTrigger>
 								<TooltipContent side='right' className='flex items-center gap-4'>
-									{user.name}
+									{getDisplayName(user)}
 								</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
@@ -82,10 +109,12 @@ const Sidebar = ({ isCollapsed, users }: SidebarProps) => {
 									alt={"User image"}
 									className='w-10 h-10'
 								/>
-								<AvatarFallback>{user.name[0]}</AvatarFallback>
+								<AvatarFallback>{getUserInitial(user)}</AvatarFallback>
 							</Avatar>
 							<div className='flex flex-col max-w-28'>
-								<span>{user.name}</span>
+								<span>
+									{getDisplayName(user)}
+								</span>
 							</div>
 						</Button>
 					)
@@ -111,9 +140,15 @@ const Sidebar = ({ isCollapsed, users }: SidebarProps) => {
 						</div>
 					)}
 					<div className='flex'>
-						<LogoutLink>
-							<LogOut size={22} cursor={"pointer"} />
-						</LogoutLink>
+						{isLocalDev ? (
+							<div className="flex items-center justify-center">
+								<LocalLogoutButton />
+							</div>
+						) : (
+							<LogoutLink>
+								<LogOut size={22} cursor={"pointer"} />
+							</LogoutLink>
+						)}
 					</div>
 				</div>
 			</div>

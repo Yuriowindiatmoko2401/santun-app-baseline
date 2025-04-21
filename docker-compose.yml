@@ -1,0 +1,23 @@
+version: '3'
+services:
+  # Local Redis instance to replace Upstash Redis
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+  
+  # Redis Commander for easy Redis data inspection
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:

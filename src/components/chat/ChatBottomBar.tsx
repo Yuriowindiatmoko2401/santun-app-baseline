@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { pusherClient } from "@/lib/pusher";
 import { Message } from "@/db/dummy";
+import { LocalCloudinaryWidget, isLocalDev as checkIsLocalDev } from "@/lib/cloudinary-local";
 
 const ChatBottomBar = () => {
 	const [message, setMessage] = useState("");
@@ -45,13 +46,52 @@ const ChatBottomBar = () => {
 		mutationFn: sendMessageAction,
 	});
 
+	// Determine if we're in local development mode
+	const [isLocalDev, setIsLocalDev] = useState(false);
+	
+	useEffect(() => {
+		setIsLocalDev(checkIsLocalDev());
+		console.log('Local development mode:', process.env.NEXT_PUBLIC_USE_LOCAL_SERVICES);
+	}, []);
+
 	const handleSendMessage = () => {
 		if (!message.trim()) return;
+		console.log('Sending message:', message, 'to user:', selectedUser?.id);
 
-		sendMessage({ content: message, messageType: "text", receiverId: selectedUser?.id! });
-		setMessage("");
-
-		textAreaRef.current?.focus();
+		try {
+			// Send the message
+			sendMessage({ 
+				content: message, 
+				messageType: "text", 
+				receiverId: selectedUser?.id! 
+			}, {
+				onSuccess: (data) => {
+					console.log('Message sent successfully:', data);
+					
+					// In local development, manually add the message to the UI
+					if (isLocalDev && currentUser) {
+						const newMessage = {
+							senderId: currentUser.id,
+							content: message,
+							messageType: "text",
+							timestamp: Date.now()
+						};
+						
+						queryClient.setQueryData(["messages", selectedUser?.id], (oldMessages: Message[] = []) => {
+							return [...oldMessages, newMessage];
+						});
+					}
+				},
+				onError: (error) => {
+					console.error('Error sending message:', error);
+				}
+			});
+			
+			setMessage("");
+			textAreaRef.current?.focus();
+		} catch (error) {
+			console.error('Exception sending message:', error);
+		}
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -92,13 +132,39 @@ const ChatBottomBar = () => {
 	return (
 		<div className='p-2 flex justify-between w-full items-center gap-2'>
 			{!message.trim() && (
-				<CldUploadWidget
-					signatureEndpoint={"/api/sign-cloudinary-params"}
-					onSuccess={(result, { widget }) => {
-						setImgUrl((result.info as CloudinaryUploadWidgetInfo).secure_url);
-						widget.close();
-					}}
-				>
+				<>
+				{isLocalDev ? (
+					// Use our local image upload in local development
+					<Button
+						variant="ghost"
+						size="icon"
+						className="rounded-full"
+						onClick={() => {
+							const widget = new LocalCloudinaryWidget({
+								onSuccess: (result, { widget }) => {
+									setImgUrl(result.info.secure_url);
+									// Send the image message immediately
+									sendMessage({
+										content: result.info.secure_url,
+										messageType: "image",
+										receiverId: selectedUser?.id!
+									});
+								}
+							});
+							widget.open();
+						}}
+					>
+						<ImageIcon className="h-5 w-5" />
+					</Button>
+				) : (
+					// Use normal Cloudinary in production
+					<CldUploadWidget
+						signatureEndpoint={"/api/sign-cloudinary-params"}
+						onSuccess={(result, { widget }) => {
+							setImgUrl((result.info as CloudinaryUploadWidgetInfo).secure_url);
+							widget.close();
+						}}
+					>
 					{({ open }) => {
 						return (
 							<ImageIcon
@@ -108,31 +174,66 @@ const ChatBottomBar = () => {
 							/>
 						);
 					}}
-				</CldUploadWidget>
+					</CldUploadWidget>
+				)}
+				</>
 			)}
 
-			<Dialog open={!!imgUrl}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Image Preview</DialogTitle>
-					</DialogHeader>
-					<div className='flex justify-center items-center relative h-96 w-full mx-auto'>
-						<Image src={imgUrl} alt='Image Preview' fill className='object-contain' />
-					</div>
+			{imgUrl && (
+				<Dialog
+					open={!!imgUrl}
+					onOpenChange={(open) => !open && setImgUrl("")}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Send Image</DialogTitle>
+						</DialogHeader>
 
-					<DialogFooter>
-						<Button
-							type='submit'
-							onClick={() => {
-								sendMessage({ content: imgUrl, messageType: "image", receiverId: selectedUser?.id! });
-								setImgUrl("");
-							}}
-						>
-							Send
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+						<div className="relative aspect-square">
+							{imgUrl.startsWith('blob:') ? (
+								// Local development blob URL
+								<img
+									src={imgUrl}
+									alt="image"
+									className="object-cover w-full h-full"
+								/>
+							) : (
+								// Production Cloudinary URL
+								<Image
+									src={imgUrl}
+									alt="image"
+									fill
+									className="object-cover"
+								/>
+							)}
+						</div>
+
+						<DialogFooter className="flex w-full justify-end">
+							<Button
+								size="sm"
+								onClick={() => setImgUrl("")}
+								variant={"outline"}
+							>
+								Cancel
+							</Button>
+							<Button
+								size="sm"
+								disabled={isPending}
+								onClick={() => {
+									sendMessage({
+										content: imgUrl,
+										messageType: "image",
+										receiverId: selectedUser?.id!
+									});
+									setImgUrl("");
+								}}
+							>
+								Send
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			)}
 
 			<AnimatePresence>
 				<motion.div

@@ -2,9 +2,14 @@
 
 import { redis } from "@/lib/db";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { getLocalKindeServerSession } from "@/lib/auth-local";
+
+// Use local auth in development, Kinde in production
+const isLocalDev = process.env.USE_LOCAL_SERVICES === 'true';
+const getAuthSession = isLocalDev ? getLocalKindeServerSession : getKindeServerSession;
 
 export async function checkAuthStatus() {
-	const { getUser } = getKindeServerSession();
+	const { getUser } = getAuthSession();
 	const user = await getUser();
 
 	if (!user) return { success: false };

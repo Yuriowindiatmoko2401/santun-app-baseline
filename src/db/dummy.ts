@@ -7,9 +7,11 @@ export interface Message {
 
 export interface User {
 	id: string;
-	name: string;
+	name?: string; // Make name optional
 	email: string;
 	image: string;
+	given_name?: string; // Add optional fields from local auth
+	family_name?: string;
 }
 
 export const USERS = [

@@ -3,25 +3,79 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Avatar, AvatarImage } from "../ui/avatar";
 import { useSelectedUser } from "@/store/useSelectedUser";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getMessages } from "@/actions/message.actions";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import MessageSkeleton from "../skeletons/MessageSkeleton";
+import { pusherClient } from "@/lib/pusher";
 
 const MessageList = () => {
 	const { selectedUser } = useSelectedUser();
 	const { user: currentUser, isLoading: isUserLoading } = useKindeBrowserClient();
 	const messageContainerRef = useRef<HTMLDivElement>(null);
+	const queryClient = useQueryClient();
+	const [refreshKey, setRefreshKey] = useState(0);
+	
+	// Use a useEffect/useState pattern to avoid hydration mismatch
+	const [isLocalDev, setIsLocalDev] = useState(false);
+	
+	// Set the local dev flag only after hydration
+	useEffect(() => {
+		setIsLocalDev(process.env.NEXT_PUBLIC_USE_LOCAL_SERVICES === 'true');
+	}, []);
 
 	const { data: messages, isLoading: isMessagesLoading } = useQuery({
-		queryKey: ["messages", selectedUser?.id],
+		queryKey: ["messages", selectedUser?.id, refreshKey],
 		queryFn: async () => {
 			if (selectedUser && currentUser) {
 				return await getMessages(selectedUser?.id, currentUser?.id);
 			}
 		},
 		enabled: !!selectedUser && !!currentUser && !isUserLoading,
+		// Refresh messages frequently in local development
+		refetchInterval: isLocalDev ? 2000 : false,
 	});
+
+	// Setup Pusher channel for real-time messaging
+	useEffect(() => {
+		if (!selectedUser || !currentUser) return;
+		
+		// Create channel name from both user IDs (ordered)
+		const channelName = `${selectedUser.id}__${currentUser.id}`.split("__").sort().join("__");
+		
+		// Subscribe to channel for real-time updates
+		const channel = pusherClient.subscribe(channelName);
+		
+		// Bind to newMessage event
+		channel.bind("newMessage", (data: any) => {
+			console.log("New message received:", data);
+			
+			// Invalidate the messages query to trigger a refresh
+			queryClient.invalidateQueries({ queryKey: ["messages", selectedUser.id] });
+			
+			// For local development, also force a refresh via state update
+			if (isLocalDev) {
+				setRefreshKey(prev => prev + 1);
+			}
+		});
+		
+		// Cleanup on unmount or when users change
+		return () => {
+			channel.unbind_all();
+			pusherClient.unsubscribe(channelName);
+		};
+	}, [selectedUser, currentUser, queryClient, isLocalDev]);
+
+	// Setup manual refresh interval for local development
+	useEffect(() => {
+		if (!isLocalDev || !selectedUser || !currentUser) return;
+		
+		const interval = setInterval(() => {
+			setRefreshKey(prev => prev + 1);
+		}, 3000); // Check for new messages every 3 seconds
+		
+		return () => clearInterval(interval);
+	}, [selectedUser, currentUser, isLocalDev]);
 
 	// Scroll to the bottom of the message container when new messages are added
 	useEffect(() => {

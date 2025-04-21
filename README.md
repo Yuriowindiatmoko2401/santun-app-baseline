@@ -19,6 +19,26 @@ About This Course:
 - 🚀 And Many More Cool Features
 - ✅ This is a lot of work. Support my work by subscribing to the [Channel](https://www.youtube.com/@asaprogrammer_)
 
+## Local Development
+
+You can run this app 100% locally without any external service accounts! See [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) for detailed instructions.
+
+Quick start:
+```bash
+# Start local development environment
+./start-local.sh
+
+# With test data initialization
+./start-local.sh --init-data
+
+# To reset all data
+./start-local.sh --reset
+```
+
+This will run Redis in Docker and create local replacements for all external services.
+
+## Production Setup
+
 ### Setup .env file
 
 ```js
